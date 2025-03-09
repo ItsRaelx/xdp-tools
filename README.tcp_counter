@@ -1,0 +1,101 @@
+# TCP Packet Counter with XDP
+
+This is a simple XDP program that counts TCP packets from each incoming IP address and displays the statistics.
+
+## Prerequisites
+
+To use this program, you need to have the following packages installed on your Debian 11 system:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential llvm clang libelf-dev libbpf-dev linux-headers-$(uname -r) make
+```
+
+You also need to install the xdp-tools package:
+
+```bash
+# Clone the xdp-tools repository if you don't have it already
+git clone https://github.com/xdp-project/xdp-tools.git
+cd xdp-tools
+
+# Configure and build
+./configure
+make
+sudo make install
+```
+
+## Kernel Configuration
+
+Make sure your kernel has XDP support enabled. The following kernel options should be enabled:
+
+- CONFIG_BPF=y
+- CONFIG_BPF_SYSCALL=y
+- CONFIG_NET_CLS_BPF=y
+- CONFIG_NET_ACT_BPF=y
+- CONFIG_BPF_JIT=y
+- CONFIG_XDP_SOCKETS=y
+
+You can check if these options are enabled with:
+
+```bash
+grep CONFIG_BPF /boot/config-$(uname -r)
+grep CONFIG_XDP /boot/config-$(uname -r)
+```
+
+## Building the TCP Counter
+
+To build the TCP counter program:
+
+```bash
+make -f Makefile.tcp_counter
+```
+
+## Running the TCP Counter
+
+To run the TCP counter, use the following command:
+
+```bash
+sudo ./tcp_counter_user -i <interface>
+```
+
+Replace `<interface>` with the name of your network interface (e.g., eth0, ens33, etc.).
+
+The program will display a table showing the source IP addresses of TCP packets and the number of packets received from each IP address. The statistics are updated every 2 seconds.
+
+Press Ctrl+C to stop the program.
+
+## How It Works
+
+The XDP program intercepts packets at the earliest possible point in the network stack, before they are processed by the kernel's networking subsystem. It:
+
+1. Parses the Ethernet header to identify IP packets
+2. Parses the IP header to identify TCP packets
+3. Extracts the source IP address from TCP packets
+4. Updates a counter in a BPF map for each source IP address
+5. Allows all packets to pass through (XDP_PASS)
+
+The user-space program:
+
+1. Loads and attaches the XDP program to the specified network interface
+2. Periodically reads and displays the statistics from the BPF map
+3. Detaches the XDP program when terminated
+
+## Troubleshooting
+
+If you encounter issues with loading the XDP program, try the following:
+
+1. Check if your network interface supports XDP:
+   ```bash
+   sudo ip link show dev <interface>
+   ```
+   Look for "xdp" in the output.
+
+2. Try using the SKB mode instead of native mode:
+   ```bash
+   # Modify tcp_counter_user.c to use XDP_MODE_SKB instead of XDP_MODE_NATIVE
+   ```
+
+3. Check kernel logs for errors:
+   ```bash
+   sudo dmesg | grep XDP
+   ``` 

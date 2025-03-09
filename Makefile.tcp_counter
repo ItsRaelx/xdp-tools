@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: GPL-2.0
+LLC ?= llc
+CLANG ?= clang
+CC ?= gcc
+
+XDP_C = tcp_counter.c
+XDP_OBJ = tcp_counter.o
+USER_C = tcp_counter_user.c
+USER_OBJ = tcp_counter_user.o
+PROG = tcp_counter_user
+
+# Determine kernel version
+KERNEL_VERSION := $(shell uname -r)
+
+# Determine libbpf and libxdp installation paths
+LIBBPF_INCLUDE ?= /usr/include
+LIBBPF_LIB ?= /usr/lib
+LIBXDP_INCLUDE ?= /usr/include
+LIBXDP_LIB ?= /usr/lib
+
+# Compiler flags
+CFLAGS := -g -Wall -I$(LIBBPF_INCLUDE) -I$(LIBXDP_INCLUDE)
+LDFLAGS := -L$(LIBBPF_LIB) -L$(LIBXDP_LIB) -lbpf -lxdp -lelf -lz
+
+# BPF compiler flags
+BPF_CFLAGS := -g -O2 -target bpf -D__TARGET_ARCH_x86 -I$(LIBBPF_INCLUDE) -I$(LIBXDP_INCLUDE)
+
+all: $(XDP_OBJ) $(PROG)
+
+$(XDP_OBJ): $(XDP_C)
+	$(CLANG) $(BPF_CFLAGS) -c $< -o $@
+
+$(USER_OBJ): $(USER_C)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(PROG): $(USER_OBJ)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+clean:
+	rm -f $(XDP_OBJ) $(USER_OBJ) $(PROG)
+
+.PHONY: all clean 
